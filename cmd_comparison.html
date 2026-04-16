@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>NGC 6866 CMD Comparison</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f7f7f7;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+
+    .main {
+      min-height: 100vh;
+      padding: 1rem;
+      display: grid;
+      place-items: center;
+      box-sizing: border-box;
+    }
+
+    .card {
+      width: min(96vw, calc(96vh * 16 / 9));
+      aspect-ratio: 16 / 9;
+      background: #ffffff;
+      border: 1px solid #dcdcdc;
+      border-radius: 0.85rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      padding: 1rem 1.15rem 0.85rem 1.15rem;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .card h2 {
+      margin: 0 0 0.55rem 0;
+      font-size: 1.4rem;
+      flex: 0 0 auto;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem 1.2rem;
+      align-items: center;
+      margin-bottom: 0.55rem;
+      flex: 0 0 auto;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      min-width: 180px;
+    }
+
+    .control-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 1rem;
+      opacity: 0.9;
+      margin-bottom: 0.15rem;
+    }
+
+    .controls input[type="range"],
+    .controls select {
+      font-size: 1rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 0.55rem;
+      flex: 0 0 auto;
+    }
+
+    .summary-text {
+      display: flex;
+      gap: 1.2rem;
+      flex-wrap: wrap;
+    }
+
+    .metric-label {
+      display: block;
+      font-size: 0.8rem;
+      opacity: 0.75;
+    }
+
+    .metric-value {
+      display: block;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    #rotation-plot {
+      height: 120px;
+    }
+
+    #cmd-plot {
+      height: 100%;
+      min-height: 0;
+    }
+
+    .plot-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+      align-items: stretch;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    #score-plot {
+      height: 100%;
+      min-height: 0;
+    }
+
+    .plot-row > div {
+      min-height: 0;
+    }
+
+    .footnote {
+      margin-top: 0.45rem;
+      font-size: 0.95rem;
+      opacity: 0.82;
+      flex: 0 0 auto;
+    }
+
+    @media (max-width: 960px) {
+      .main {
+        padding: 1rem;
+      }
+
+      .card {
+        width: min(98vw, calc(98vh * 16 / 9));
+        padding: 0.9rem 0.95rem 0.8rem 0.95rem;
+      }
+
+      .summary-row {
+        grid-template-columns: 1fr;
+      }
+
+      .plot-row {
+        grid-template-columns: 1fr;
+      }
+
+      #cmd-plot {
+        height: 100%;
+        min-height: 0;
+      }
+
+      #score-plot {
+        height: 100%;
+        min-height: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="main">
+    <section class="card">
+      <h2>Theoretical vs Observational CMD</h2>
+
+      <div class="controls">
+        <div class="control-group">
+          <div class="control-label-row">
+            <span>Model grid</span>
+            <span id="model-value">PARSEC</span>
+          </div>
+          <select id="model-select">
+            <option value="parsec">PARSEC</option>
+            <option value="mist">MIST</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label-row">
+            <span>Cluster age (Myr)</span>
+            <span id="age-value">530</span>
+          </div>
+          <input id="age-slider" type="range" min="100" max="1000" step="10" value="530" />
+        </div>
+
+        <div class="control-group">
+          <div class="control-label-row">
+            <span>Extinction A<sub>G</sub> (mag)</span>
+            <span id="ag-value">0.40</span>
+          </div>
+          <input id="ag-slider" type="range" min="0" max="1.0" step="0.02" value="0.4" />
+        </div>
+
+        <div class="control-group">
+          <div class="control-label-row">
+            <span>Initial rotation (v/v<sub>crit</sub>)</span>
+            <span id="rot-value">0.50</span>
+          </div>
+          <input id="rot-slider" type="range" min="0" max="0.9" step="0.1" value="0.5" />
+        </div>
+      </div>
+
+      <div class="summary-row">
+        <div class="summary-text">
+          <div>
+            <span class="metric-label">Age</span>
+            <span class="metric-value" id="summary-age">530 Myr</span>
+          </div>
+          <div>
+            <span class="metric-label">Extinction A<sub>G</sub></span>
+            <span class="metric-value" id="summary-ag">0.40 mag</span>
+          </div>
+          <div>
+            <span class="metric-label">Rotation peak</span>
+            <span class="metric-value" id="summary-rot">0.50 v/v<sub>crit</sub></span>
+          </div>
+          <div>
+            <span class="metric-label">CMD Score</span>
+            <span class="metric-value" id="summary-score">–</span>
+          </div>
+        </div>
+        <div id="rotation-plot"></div>
+      </div>
+
+      <div class="plot-row">
+        <div id="cmd-plot"></div>
+        <div id="score-plot"></div>
+      </div>
+
+      <p class="footnote">
+        <strong>haotian.wang@kuleuven.be</strong>
+      </p>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      ageMyr: 530,
+      ag: 0.4,
+      rotation: 0.5,
+      model: "parsec"
+    };
+
+    let modelGrids = {};
+    let observedCmd = null;
+    let pulsators = null;
+
+    const numSyntheticStars = 5000;
+    const maxDrawFactor = 8;
+    const extinctionRatios = { bpOverAg: 1.3, rpOverAg: 0.8 };
+    const rotationSigma = 0.15;
+    const jitter = { color: 0.02, mag: 0.05 };
+    const scoreGrid = {
+      xMin: 0.0,
+      xMax: 1.65,
+      yMin: 9.5,
+      yMax: 16.0,
+      numBins: 30
+    };
+
+    const formatRotationKey = (value) => value.toFixed(1);
+    const logAgeFromMyr = (ageMyr) => Math.log10(ageMyr * 1e6);
+
+    function nearestValue(target, values) {
+      return values.reduce((best, current) => {
+        const delta = Math.abs(current - target);
+        return delta < best.delta ? { value: current, delta } : best;
+      }, { value: values[0], delta: Math.abs(values[0] - target) }).value;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function gaussianSample(mean, sigma) {
+      const u1 = Math.random() || 1e-9;
+      const u2 = Math.random();
+      const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+      return mean + z0 * sigma;
+    }
+
+    function samplePowerLaw(minMass, maxMass, alpha = 2.35) {
+      const exponent = 1 - alpha;
+      const minTerm = Math.pow(minMass, exponent);
+      const maxTerm = Math.pow(maxMass, exponent);
+      const r = Math.random();
+      return Math.pow(minTerm + (maxTerm - minTerm) * r, 1 / exponent);
+    }
+
+    function binIndex(value, min, max, numBins) {
+      if (value < min || value > max) return -1;
+      if (value === max) return numBins - 1;
+      const scaled = (value - min) / (max - min);
+      return Math.floor(scaled * numBins);
+    }
+
+    function computeScoreMap(synthCloud) {
+      const { xMin, xMax, yMin, yMax, numBins } = scoreGrid;
+      const observedBins = new Set();
+      const syntheticCounts = new Map();
+      const z = Array.from({ length: numBins }, () => Array(numBins).fill(0));
+      const xCenters = [];
+      const yCenters = [];
+
+      const xStep = (xMax - xMin) / numBins;
+      const yStep = (yMax - yMin) / numBins;
+      for (let i = 0; i < numBins; i++) {
+        xCenters.push(xMin + (i + 0.5) * xStep);
+        yCenters.push(yMin + (i + 0.5) * yStep);
+      }
+
+      for (let i = 0; i < observedCmd.bp_rp.length; i++) {
+        const xBin = binIndex(observedCmd.bp_rp[i], xMin, xMax, numBins);
+        const yBin = binIndex(observedCmd.g[i], yMin, yMax, numBins);
+        if (xBin < 0 || yBin < 0) continue;
+        observedBins.add(`${xBin},${yBin}`);
+      }
+
+      for (let i = 0; i < synthCloud.color.length; i++) {
+        const xBin = binIndex(synthCloud.color[i], xMin, xMax, numBins);
+        const yBin = binIndex(synthCloud.mag[i], yMin, yMax, numBins);
+        if (xBin < 0 || yBin < 0) continue;
+        const key = `${xBin},${yBin}`;
+        syntheticCounts.set(key, (syntheticCounts.get(key) || 0) + 1);
+      }
+
+      let score = 0;
+      for (const [key, count] of syntheticCounts.entries()) {
+        if (!observedBins.has(key)) continue;
+        const [xBin, yBin] = key.split(",").map(Number);
+        z[yBin][xBin] = count;
+        score += count;
+      }
+
+      return { score, z, xCenters, yCenters };
+    }
+
+    function activeGrid() {
+      return modelGrids[state.model];
+    }
+
+    function nearestAgeEntry(rotationKey, targetLogAge) {
+      const grid = activeGrid().grid[rotationKey] || [];
+      if (!grid.length) return null;
+      let best = grid[0];
+      let delta = Math.abs(grid[0].logAge - targetLogAge);
+      for (const entry of grid) {
+        const d = Math.abs(entry.logAge - targetLogAge);
+        if (d < delta) {
+          best = entry;
+          delta = d;
+        }
+      }
+      return best;
+    }
+
+    function generateIsochroneCloud(ageMyr, ag, rotation) {
+      const grid = activeGrid();
+      const rotationValues = grid.meta.rotationValues.map(Number);
+      const logAgeTarget = logAgeFromMyr(ageMyr);
+      const colorShift = (extinctionRatios.bpOverAg - extinctionRatios.rpOverAg) * ag;
+      const magShift = grid.meta.distanceModulus + ag;
+
+      const ageEntryByRot = {};
+      rotationValues.forEach((rotVal) => {
+        const key = formatRotationKey(rotVal);
+        ageEntryByRot[key] = nearestAgeEntry(key, logAgeTarget);
+      });
+
+      const colors = [];
+      const mags = [];
+      const rotations = [];
+
+      const maxAttempts = numSyntheticStars * maxDrawFactor;
+      let attempts = 0;
+
+      while (colors.length < numSyntheticStars && attempts < maxAttempts) {
+        attempts += 1;
+        const rotSample = clamp(
+          gaussianSample(rotation, rotationSigma),
+          rotationValues[0],
+          rotationValues[rotationValues.length - 1]
+        );
+        const nearestRot = nearestValue(rotSample, rotationValues);
+        const rotKey = formatRotationKey(nearestRot);
+        const iso = ageEntryByRot[rotKey];
+        if (!iso || !iso.mini || iso.mini.length < 2) continue;
+
+        const massArr = iso.mini;
+        const colorArr = iso.color;
+        const magArr = iso.gMag;
+        const minMass = massArr[0];
+        const maxMass = massArr[massArr.length - 1];
+        const mStar = samplePowerLaw(minMass, maxMass);
+
+        let upperIndex = massArr.findIndex((m) => m >= mStar);
+        if (upperIndex === -1) upperIndex = massArr.length - 1;
+        const lowerIndex = Math.max(0, upperIndex - 1);
+
+        const m0 = massArr[lowerIndex];
+        const m1 = massArr[upperIndex];
+        const t = m1 === m0 ? 0 : (mStar - m0) / (m1 - m0);
+
+        const c = colorArr[lowerIndex] + t * (colorArr[upperIndex] - colorArr[lowerIndex]) + colorShift + (Math.random() * 2 - 1) * jitter.color;
+        const g = magArr[lowerIndex] + t * (magArr[upperIndex] - magArr[lowerIndex]) + magShift + (Math.random() * 2 - 1) * jitter.mag;
+
+        if (g < 9 || g > 17) continue;
+
+        colors.push(c);
+        mags.push(g);
+        rotations.push(nearestRot);
+      }
+
+      return { color: colors, mag: mags, rot: rotations };
+    }
+
+    function rotationDensity(mean) {
+      const xs = [];
+      const ys = [];
+      const step = 0.01;
+      for (let x = 0; x <= 0.9 + 1e-6; x += step) {
+        const val = Math.exp(-0.5 * Math.pow((x - mean) / rotationSigma, 2));
+        xs.push(Number(x.toFixed(3)));
+        ys.push(val);
+      }
+      const area = ys.reduce((s, v) => s + v, 0) * step;
+      if (area > 0) {
+        for (let i = 0; i < ys.length; i++) ys[i] /= area;
+      }
+      return { x: xs, y: ys };
+    }
+
+    function updateRotationPlot() {
+      const density = rotationDensity(state.rotation);
+      const maxY = density.y.length ? Math.max(...density.y) : 1;
+
+      Plotly.react("rotation-plot", [
+        {
+          x: density.x,
+          y: density.y,
+          mode: "lines",
+          line: { color: "#1f77b4", width: 3 },
+          fill: "tozeroy",
+          name: "Initial Rotation",
+          hovertemplate: "v/v<sub>crit</sub> = %{x:.2f}<br>PDF = %{y:.2f}<extra></extra>"
+        },
+        {
+          x: [state.rotation, state.rotation],
+          y: [0, maxY * 1.05],
+          mode: "lines",
+          line: { color: "#ff9900", width: 2, dash: "dash" },
+          hoverinfo: "skip",
+          showlegend: false
+        }
+      ], {
+        margin: { l: 50, r: 10, t: 10, b: 35 },
+        xaxis: {
+          title: "v/v<sub>crit</sub>",
+          range: [0, 0.9],
+          zeroline: false,
+          tickfont: { color: "#333", size: 14 },
+          titlefont: { color: "#333", size: 16 },
+          gridcolor: "#e6e6e6",
+          linecolor: "#b3b3b3"
+        },
+        yaxis: {
+          title: "PDF",
+          rangemode: "tozero",
+          showgrid: false,
+          tickfont: { color: "#333", size: 14 },
+          titlefont: { color: "#333", size: 16 },
+          linecolor: "#b3b3b3"
+        },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff",
+        height: 150
+      }, {
+        displayModeBar: false,
+        responsive: true
+      });
+    }
+
+    function updateSummaryText() {
+      document.getElementById("summary-age").textContent = `${state.ageMyr.toFixed(0)} Myr`;
+      document.getElementById("summary-ag").textContent = `${state.ag.toFixed(2)} mag`;
+      document.getElementById("summary-rot").innerHTML = `${state.rotation.toFixed(2)} v/v<sub>crit</sub>`;
+    }
+
+    function updateCmdScore(scoreMap) {
+      document.getElementById("summary-score").textContent = String(scoreMap.score);
+    }
+
+    function scoreGridShapes() {
+      const { xMin, xMax, yMin, yMax, numBins } = scoreGrid;
+      const xStep = (xMax - xMin) / numBins;
+      const yStep = (yMax - yMin) / numBins;
+      const shapes = [];
+
+      for (let i = 0; i <= numBins; i++) {
+        const x = xMin + i * xStep;
+        shapes.push({
+          type: "line",
+          x0: x,
+          x1: x,
+          y0: yMin,
+          y1: yMax,
+          xref: "x",
+          yref: "y",
+          line: {
+            color: "rgba(90, 90, 90, 0.45)",
+            width: 0.7
+          },
+          layer: "above"
+        });
+      }
+
+      for (let i = 0; i <= numBins; i++) {
+        const y = yMin + i * yStep;
+        shapes.push({
+          type: "line",
+          x0: xMin,
+          x1: xMax,
+          y0: y,
+          y1: y,
+          xref: "x",
+          yref: "y",
+          line: {
+            color: "rgba(90, 90, 90, 0.45)",
+            width: 0.7
+          },
+          layer: "above"
+        });
+      }
+
+      return shapes;
+    }
+
+    function renderScorePlot(scoreMap) {
+      const maxScore = scoreMap.score > 0 ? Math.max(...scoreMap.z.flat()) : 1;
+
+      Plotly.react("score-plot", [
+        {
+          x: scoreMap.xCenters,
+          y: scoreMap.yCenters,
+          z: scoreMap.z,
+          type: "heatmap",
+          colorscale: [
+            [0.0, "#ffffff"],
+            [0.15, "#dbeafe"],
+            [0.5, "#60a5fa"],
+            [1.0, "#1d4ed8"]
+          ],
+          zmin: 0,
+          zmax: maxScore,
+          colorbar: {
+            title: "Box score",
+            titlefont: { size: 14, color: "#333" },
+            tickfont: { size: 13, color: "#333" }
+          },
+          hovertemplate: "Box score = %{z}<br>G<sub>BP</sub>−G<sub>RP</sub> = %{x:.2f}<br>G = %{y:.2f}<extra></extra>"
+        },
+        {
+          x: observedCmd.bp_rp,
+          y: observedCmd.g,
+          mode: "markers",
+          name: "Observed members",
+          marker: {
+            size: 6,
+            color: "rgba(140,140,140,0.82)"
+          },
+          hovertemplate: "Observed<br>G<sub>BP</sub>−G<sub>RP</sub> = %{x:.2f}<br>G = %{y:.2f}<extra></extra>"
+        }
+      ], {
+        margin: { l: 60, r: 25, t: 10, b: 50 },
+        xaxis: {
+          title: "G<sub>BP</sub> − G<sub>RP</sub>",
+          range: [scoreGrid.xMin, scoreGrid.xMax],
+          zeroline: false,
+          tickfont: { color: "#333", size: 14 },
+          titlefont: { color: "#333", size: 16 },
+          gridcolor: "#c7c7c7",
+          linecolor: "#9a9a9a"
+        },
+        yaxis: {
+          title: "G (mag)",
+          range: [scoreGrid.yMax, scoreGrid.yMin],
+          tickfont: { color: "#333", size: 14 },
+          titlefont: { color: "#333", size: 16 },
+          gridcolor: "#c7c7c7",
+          linecolor: "#9a9a9a"
+        },
+        legend: {
+          x: 0.02,
+          y: 0.98,
+          bgcolor: "rgba(255,255,255,0.75)",
+          font: { size: 12, color: "#333" }
+        },
+        shapes: scoreGridShapes(),
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff"
+      }, {
+        displayModeBar: false,
+        responsive: true
+      });
+    }
+
+    function initCmdPlot() {
+      const cloud = generateIsochroneCloud(state.ageMyr, state.ag, state.rotation);
+      const scoreMap = computeScoreMap(cloud);
+
+      Plotly.newPlot("cmd-plot", [
+        {
+          x: observedCmd.bp_rp,
+          y: observedCmd.g,
+          mode: "markers",
+          name: "NGC 6866 members",
+          marker: { size: 8, color: "rgba(120,120,120,0.9)" },
+          hovertemplate: "Observed<br>G<sub>BP</sub>−G<sub>RP</sub> = %{x:.2f}<br>G = %{y:.2f}<extra></extra>"
+        },
+        {
+          x: pulsators.bp_rp,
+          y: pulsators.g,
+          mode: "markers",
+          name: "g-mode pulsators",
+          marker: { size: 13, color: "rgba(200,30,30,0.9)", symbol: "cross" },
+          hovertemplate: "g-mode<br>G<sub>BP</sub>−G<sub>RP</sub> = %{x:.2f}<br>G = %{y:.2f}<extra></extra>"
+        },
+        {
+          x: cloud.color,
+          y: cloud.mag,
+          mode: "markers",
+          name: `${state.model.toUpperCase()} synthetic CMD`,
+          marker: {
+            size: 4,
+            color: cloud.rot,
+            colorscale: [[0, "#e6e600"], [0.5, "#00e600"], [1, "#6666ff"]],
+            cmin: 0,
+            cmax: 0.9,
+            colorbar: {
+              title: "v/v<sub>crit</sub>",
+              titleside: "right",
+              titlefont: { size: 14, color: "#333" },
+              tickmode: "array",
+              tickvals: [0, 0.3, 0.6, 0.9],
+              ticktext: ["0.0", "0.3", "0.6", "0.9"],
+              tickfont: { size: 14, color: "#333" }
+            }
+          },
+          hovertemplate: "Model<br>G<sub>BP</sub>−G<sub>RP</sub> = %{x:.2f}<br>G = %{y:.2f}<extra></extra>"
+        }
+      ], {
+        margin: { l: 60, r: 10, t: 10, b: 50 },
+        xaxis: {
+          title: "G<sub>BP</sub> − G<sub>RP</sub>",
+          range: [0.0, 1.65],
+          zeroline: false,
+          tickfont: { color: "#333", size: 15 },
+          titlefont: { color: "#333", size: 17 },
+          gridcolor: "#e6e6e6",
+          linecolor: "#b3b3b3"
+        },
+        yaxis: {
+          title: "G (mag)",
+          range: [16, 9.5],
+          tickfont: { color: "#333", size: 15 },
+          titlefont: { color: "#333", size: 17 },
+          gridcolor: "#e6e6e6",
+          linecolor: "#b3b3b3"
+        },
+        legend: {
+          x: 0.02,
+          y: 0.02,
+          yanchor: "bottom",
+          font: { size: 12, color: "#333" }
+        },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff"
+      }, {
+        displayModeBar: false,
+        responsive: true
+      });
+
+      renderScorePlot(scoreMap);
+      updateCmdScore(scoreMap);
+    }
+
+    function updateCmdPlot() {
+      const cloud = generateIsochroneCloud(state.ageMyr, state.ag, state.rotation);
+      const scoreMap = computeScoreMap(cloud);
+      Plotly.restyle("cmd-plot", {
+        x: [cloud.color],
+        y: [cloud.mag],
+        "marker.color": [cloud.rot],
+        name: [`${state.model.toUpperCase()} synthetic CMD`]
+      }, [2]);
+      updateRotationPlot();
+      updateSummaryText();
+      renderScorePlot(scoreMap);
+      updateCmdScore(scoreMap);
+    }
+
+    function setupControls() {
+      const ageSlider = document.getElementById("age-slider");
+      const agSlider = document.getElementById("ag-slider");
+      const rotSlider = document.getElementById("rot-slider");
+      const modelSelect = document.getElementById("model-select");
+
+      document.getElementById("age-value").textContent = state.ageMyr.toFixed(0);
+      document.getElementById("ag-value").textContent = state.ag.toFixed(2);
+      document.getElementById("rot-value").textContent = state.rotation.toFixed(1);
+      document.getElementById("model-value").textContent = state.model.toUpperCase();
+
+      ageSlider.addEventListener("input", (e) => {
+        state.ageMyr = parseFloat(e.target.value);
+        document.getElementById("age-value").textContent = state.ageMyr.toFixed(0);
+        updateCmdPlot();
+      });
+
+      agSlider.addEventListener("input", (e) => {
+        state.ag = parseFloat(e.target.value);
+        document.getElementById("ag-value").textContent = state.ag.toFixed(2);
+        updateCmdPlot();
+      });
+
+      rotSlider.addEventListener("input", (e) => {
+        state.rotation = parseFloat(e.target.value);
+        document.getElementById("rot-value").textContent = state.rotation.toFixed(1);
+        updateCmdPlot();
+      });
+
+      modelSelect.addEventListener("change", (e) => {
+        state.model = e.target.value;
+        document.getElementById("model-value").textContent = state.model.toUpperCase();
+        updateCmdPlot();
+      });
+    }
+
+    async function loadData() {
+      const [parsecResp, mistResp, obsResp, pulsResp] = await Promise.all([
+        fetch("parsec_cmd_subset.json"),
+        fetch("mist_cmd_subset.json"),
+        fetch("ngc6866_cmd_points.json"),
+        fetch("pulsators_gdor.json")
+      ]);
+
+      modelGrids.parsec = await parsecResp.json();
+      modelGrids.mist = await mistResp.json();
+      observedCmd = await obsResp.json();
+      pulsators = await pulsResp.json();
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await loadData();
+      setupControls();
+      updateSummaryText();
+      initCmdPlot();
+      updateRotationPlot();
+    });
+  </script>
+</body>
+</html>
